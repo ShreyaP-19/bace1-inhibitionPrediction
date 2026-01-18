@@ -1,4 +1,4 @@
-from data.bace_dataset import BACEDataset
+from main.bace_dataset import BACEDataset
 
 dataset = BACEDataset("data/sample_smiles.csv")
 
