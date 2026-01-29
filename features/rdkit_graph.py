@@ -45,11 +45,15 @@ def smiles_to_graph(smiles, label=None):
         edge_attr.append(bf)
         edge_attr.append(bf)
 
-    edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
-    edge_attr = torch.tensor(edge_attr, dtype=torch.float)
+    if len(edge_index) == 0:
+        edge_index = torch.empty((2, 0), dtype=torch.long)
+        edge_attr = torch.empty((0, 3), dtype=torch.float)
+    else:
+        edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+        edge_attr = torch.tensor(edge_attr, dtype=torch.float)
 
     if label is not None:
-        y = torch.tensor(label, dtype=torch.long)
+        y = torch.tensor(label, dtype=torch.float)
         return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
 
     return Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
