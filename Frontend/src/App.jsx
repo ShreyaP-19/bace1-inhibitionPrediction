@@ -22,7 +22,7 @@ export default function App() {
     setError("");
   };
 
-  const handlePredict = () => {
+  const handlePredict = async () => {
     setError("");
     setResult(null);
 
@@ -33,21 +33,38 @@ export default function App() {
 
     setIsAnalyzing(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsAnalyzing(false);
+    try {
+      const response = await fetch("http://localhost:8000/predict", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ smiles: smiles.trim() }),
+      });
 
-      // Mock random prediction logic
-      const isInhibitor = Math.random() > 0.5;
-      const predictedIC50 = (Math.random() * (9.0 - 4.0) + 4.0).toFixed(2); // Random pIC50 between 4 and 9
-      const confidenceScore = Math.random().toFixed(2);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Prediction failed. Server error.");
+      }
+
+      const data = await response.json();
+
+      // Calculate true confidence: if inactive (prob < 0.5), use 1 - prob
+      const prob = data.confidenceScore;
+      const trueConfidence = data.isInhibitor ? prob : (1 - prob);
 
       setResult({
-        isInhibitor,
-        predictedIC50,
-        confidenceScore
+        isInhibitor: data.isInhibitor,
+        predictedIC50: data.predictedIC50.toFixed(2),
+        confidenceScore: trueConfidence
       });
-    }, 1500);
+
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Failed to connect to the prediction server.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   return (

@@ -55,15 +55,32 @@ def compute_features(smiles):
     # Better approach: We accept we might be slightly off scale without saved Scaler.
     return np.array(features, dtype=np.float32)
 
-def predict(smiles, model_path="bace_model.pth"):
+
+def load_model(model_path="bace_model.pth"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Load Tokenizer
     tokenizer = AutoTokenizer.from_pretrained("DeepChem/ChemBERTa-77M-MTR")
     
-    print(f"Processing Molecule: {smiles}")
+    # Dummy graph for init (needed for dimension inference or hardcode)
+    # We hardcode dims based on training script
+    # input_dim=6 (RDKit graph), hidden_dim=128, extra=12
+    model = GCN(input_dim=6, hidden_dim=128, extra_features_dim=12).to(device)
+    
+    if os.path.exists(model_path):
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.eval()
+        print(f"Model loaded from {model_path}")
+        return model, tokenizer, device
+    else:
+        raise FileNotFoundError(f"Model not found at {model_path}")
+
+def predict_with_model(smiles, model, tokenizer, device, verbose=True):
+    if verbose:
+        print(f"Processing Molecule: {smiles}")
     
     # 1. Graph
     graph = smiles_to_graph(smiles, 0) # Dummy label 0
-    if graph is None: return
+    if graph is None: return None, None
 
     # 2. Text
     inputs = tokenizer(smiles, return_tensors="pt", padding='max_length', max_length=128, truncation=True)
@@ -72,54 +89,34 @@ def predict(smiles, model_path="bace_model.pth"):
     try:
         feats = compute_features(smiles)
         
-        # NORMALIZATION FIX: Use Training Set Statistics!
-        # Calculated from data/train.csv
-        # ['MW', 'AlogP', 'HBA', 'HBD', 'RB', 'HeavyAtomCount', 'ChiralCenterCount', 'RingCount', 'PSA', 'Estate', 'MR', 'Polar']
-        train_mean = np.array([481.53, 3.17, 5.09, 2.39, 8.16, 33.72, 1.13, 3.73, 85.93, 85.09, 128.53, 83.08])
-        train_std  = np.array([120.16, 1.40, 1.83, 1.25, 4.34, 8.44, 1.63, 1.22, 40.59, 26.68, 31.18, 38.95])
+        # NORMALIZATION: Use Training Set Statistics!
+        train_mean = np.array([481.54, 3.13, 4.85, 2.46, 7.73, 34.20, 0.52, 3.78, 95.36, 12.97, 129.69, 95.36])
+        train_std  = np.array([120.12, 1.25, 1.52, 1.24, 4.63, 8.40, 1.11, 0.89, 32.33, 2.05, 31.04, 32.33])
         
-        # Z-Score Normalize using GLOBAL stats from training data
-        # These values MUST match what BACEDataset used during training
-        # Since BACEDataset computed mean/std on the fly on the full csv,
-        # we reused the values calculated from 'data/train.csv' earlier.
         feats = (feats - train_mean) / (train_std + 1e-6)
-        
-        # DEBUG: Print features to see if they look like the training distribution (approx N(0,1))
-        # print(f"DEBUG: Normalized Features: {feats}")
         
     except Exception as e:
         print(f"Feature calculation error: {e}")
-        return
+        return None, None
 
     # Prepare Tensors
     graph.x = graph.x.to(device)
     graph.edge_index = graph.edge_index.to(device)
-    graph.batch = torch.zeros(graph.x.shape[0], dtype=torch.long).to(device) # Single graph batch
+    graph.batch = torch.zeros(graph.x.shape[0], dtype=torch.long).to(device) 
     
     input_ids = inputs["input_ids"].to(device)
     attention_mask = inputs["attention_mask"].to(device)
-    extra_features = torch.tensor(feats, dtype=torch.float32).unsqueeze(0).to(device) # (1, 12)
+    extra_features = torch.tensor(feats, dtype=torch.float32).unsqueeze(0).to(device)
     
     # Heavy Atom Mask
     tokens = tokenizer.convert_ids_to_tokens(input_ids.squeeze(0))
     heavy_atoms = {'C','N','O','S','P','F','Cl','Br','I','c','n','o','s','p'}
     heavy_indices = [i for i,t in enumerate(tokens) if t and t.replace('Ġ','') in heavy_atoms]
     
-    # Alignment Truncation
     if len(heavy_indices) > graph.x.shape[0]: heavy_indices = heavy_indices[:graph.x.shape[0]]
     
     heavy_mask = torch.zeros_like(input_ids)
     heavy_mask[0, heavy_indices] = 1
-    
-    # Load Model
-    model = GCN(input_dim=graph.x.shape[1], hidden_dim=128, extra_features_dim=12).to(device)
-    try:
-        model.load_state_dict(torch.load(model_path, map_location=device))
-    except FileNotFoundError:
-        print(f"Error: {model_path} not found. Train the model first!")
-        return
-        
-    model.eval()
     
     with torch.no_grad():
         out_class, out_reg = model(
@@ -133,16 +130,28 @@ def predict(smiles, model_path="bace_model.pth"):
         )
         
     prob = torch.sigmoid(out_class).item()
-    logit = out_class.item()
     pic50 = out_reg.item()
     
-    print("\n" + "="*40)
-    print(f"RESULTS FOR: {smiles}")
-    print("="*40)
-    print(f"Raw Class Logit       : {logit:.4f}")
-    print(f"Inhibitor Probability : {prob:.4f} ({'ACTIVE' if prob > 0.5 else 'INACTIVE'})")
-    print(f"Predicted pIC50       : {pic50:.4f}")
-    print("="*40 + "\n")
+    return prob, pic50
+
+def predict(smiles, model_path="bace_model.pth"):
+    try:
+        model, tokenizer, device = load_model(model_path)
+    except Exception as e:
+        print(e)
+        return
+
+    prob, pic50 = predict_with_model(smiles, model, tokenizer, device)
+    
+    if prob is not None:
+        logit = np.log(prob / (1 - prob + 1e-9)) # Approx logit back
+        print("\n" + "="*40)
+        print(f"RESULTS FOR: {smiles}")
+        print("="*40)
+        print(f"Inhibitor Probability : {prob:.4f} ({'ACTIVE' if prob > 0.5 else 'INACTIVE'})")
+        print(f"Predicted pIC50       : {pic50:.4f}")
+        print("="*40 + "\n")
+        return prob, pic50
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
