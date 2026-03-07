@@ -9,6 +9,7 @@ import {
   XCircle,
   Beaker
 } from "lucide-react";
+import MoleculeViewer from "./MoleculeViewer";
 
 export default function App() {
   const [smiles, setSmiles] = useState("");
@@ -199,18 +200,18 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Molecule Visualization Placeholder */}
-              <div className="bg-slate-50 border border-slate-200 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center min-h-[200px] text-center">
-                <div id="mol-structure" className="w-full h-full flex items-center justify-center">
-                  <div className="text-slate-400 flex flex-col items-center gap-3">
-                    <Atom className="w-12 h-12 opacity-20" />
-                    <span className="text-sm font-medium">Structure Visualization Placeholder</span>
-                    <span className="text-xs max-w-xs opacity-70">
-                      (Integration with RDKit.js or SmilesDrawer would be rendered here)
-                    </span>
-                  </div>
+              {/* Molecule Visualization */}
+              {smiles && (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 flex flex-col items-center justify-center min-h-[200px] text-center">
+                  <h3 className="text-sm font-semibold text-slate-600 mb-4 uppercase tracking-wide">
+                    Molecular Structure
+                  </h3>
+
+                  <MoleculeViewer smiles={smiles.trim()} />
                 </div>
-              </div>
+              )}
+
+
             </div>
           )}
         </main>
