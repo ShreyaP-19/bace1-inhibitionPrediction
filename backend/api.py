@@ -50,7 +50,12 @@ app = FastAPI(title="BACE-1 Prediction API", lifespan=lifespan)
 # --- CORS Configuration ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[
+        # "http://localhost:5173", 
+        # "http://localhost:3000",
+        # "https://bace1-inhibition-prediction.vercel.app"
+        "*"   #for deployment only
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -114,4 +119,9 @@ def predict(data: MoleculeInput):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "api:app", 
+        host="0.0.0.0", 
+        port=int(os.environ.get("PORT", 8000))
+        # , reload=True
+        )
