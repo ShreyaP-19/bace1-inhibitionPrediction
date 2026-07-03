@@ -1,5 +1,11 @@
-# fastapi
-# uvicorn
-# torch
-# rdkit
-# pydantic
+fastapi
+uvicorn
+torch
+rdkit
+pydantic
+torch_geometric
+transformers
+pandas
+numpy
+scikit-learn
+matplotlib
