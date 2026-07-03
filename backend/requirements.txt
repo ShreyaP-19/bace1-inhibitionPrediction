@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-torch
 rdkit
 pydantic
 torch_geometric
@@ -9,3 +8,6 @@ pandas
 numpy
 scikit-learn
 matplotlib
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
