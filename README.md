@@ -1,5 +1,8 @@
-
 # 🧬 BACE-1 Inhibitor Prediction using Multimodal Deep Learning
+
+## 🌐 Live Deployment
+- **Frontend App**: [https://bace1-inhibition-prediction.vercel.app/](https://bace1-inhibition-prediction.vercel.app/)
+- **Backend API**: [https://huggingface.co/spaces/ShreyaP1908/bace1-inhibition-prediction](https://huggingface.co/spaces/ShreyaP1908/bace1-inhibition-prediction)
 
 # 📌 Overview
 This project presents a hybrid deep learning framework for predicting BACE-1 inhibitor activity and binding strength, a crucial task in early-stage Alzheimer's drug discovery. The model integrates **sequence-based (SMILES)** and **structure-based (molecular graph)** representations to improve prediction accuracy and robustness.
