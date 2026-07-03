@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.git
+.gitignore
+.vscode
+Frontend/node_modules
+backend/__pycache__
+main/__pycache__
